@@ -1,0 +1,14 @@
+[
+    {
+        "email": "naniksuwarni13@gmail.com",
+        "password": "12345",
+        "username": "test",
+        "profile_photo": "test.jpg"
+    },
+    {
+        "email": "akunfb181716@gmail.com",
+        "password": "12345",
+        "profile_photo": null,
+        "username": "ulil"
+    }
+]

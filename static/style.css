@@ -1,0 +1,297 @@
+.btn{
+    transition: all 0.25s ease;
+}
+
+.btn:hover{
+    transform: translateY(-3px);
+}
+
+.btn:active{
+    transform: scale(0.95);
+}
+
+.card{
+    transition: all 0.3s ease;
+}
+
+.card:hover{
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+}
+
+.table tbody tr{
+    transition: all 0.2s ease;
+}
+
+.table tbody tr:hover{
+    background:#eaf4ff;
+}
+
+body{
+    font-family: 'Segoe UI', sans-serif;
+    /* Jangan timpa background halaman dashboard/mahasiswa yang pakai dark theme. */
+    margin: 40px;
+}
+
+
+.container{
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.1);
+}
+
+h1{
+    color: #2c3e50;
+}
+
+input{
+    padding: 10px;
+    margin: 5px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+button{
+    padding: 10px 15px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+button:hover{
+    opacity: 0.9;
+}
+
+table{
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+th{
+    background: #3498db;
+    color: white;
+}
+
+th,
+td{
+    padding: 12px;
+    border: 1px solid #ddd;
+}
+
+tr:nth-child(even){
+    background: #f9f9f9;
+}
+
+a{
+    text-decoration: none;
+}
+
+/* =========================
+   Hide sidebar for verify-only pages
+========================= */
+
+.verify-only .sidebar{
+    display:none;
+}
+
+.verify-only{
+    margin-left:0 !important;
+    padding:0 !important;
+    min-height:100vh;
+}
+
+/* =========================
+   Verify OTP Page
+========================= */
+
+
+.verify-wrapper{
+    min-height: calc(100vh - 60px);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding: 20px 0;
+}
+
+/* Make sure container spacing looks good when sidebar is hidden */
+.content.verify-only{
+    display:flex;
+    align-items:center;
+    justify-content:flex-start;
+    padding:0 !important;
+    margin:0 !important;
+}
+
+/* Push layout to the left (was centering before) */
+.verify-wrapper{
+    width: 100%;
+    justify-content:flex-start;
+    padding-left: 40px;
+}
+
+/* Pastikan kartu tidak ikut centering */
+.verify-card{
+    margin-left: 0;
+}
+
+
+
+.verify-card{
+    margin-top: 0;
+    width:100%;
+    max-width:760px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+}
+
+/* Single column for /verify (no empty right side) */
+.verify-layout{
+    display:block;
+}
+
+.verify-left{
+    flex: initial;
+}
+
+.verify-right{
+    display:none;
+}
+
+
+.verify-right-title{
+    color: rgba(255,255,255,0.85);
+    font-weight: 800;
+    margin-bottom: 10px;
+    letter-spacing: 0.2px;
+}
+
+.verify-header{
+    text-align:left;
+    margin-bottom: 18px;
+}
+
+
+.verify-badge{
+    width:72px;
+    height:72px;
+    margin: 0 auto 10px auto;
+    border-radius: 18px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background: linear-gradient(135deg, rgba(79,140,255,0.25), rgba(99,102,241,0.25));
+    border: 1px solid rgba(79,140,255,0.35);
+    color:#7fb3ff;
+    font-size: 30px;
+}
+
+.verify-title{
+    font-weight: 800;
+    letter-spacing: 0.2px;
+}
+
+.verify-subtitle{
+    color: rgba(255,255,255,0.7);
+    margin-top:6px;
+}
+
+.verify-form{
+    margin-top: 14px;
+}
+
+.verify-card{
+    padding: 26px 26px 24px 26px;
+}
+
+.verify-header{
+    margin-bottom: 14px;
+}
+
+.otp-box{
+    margin-bottom: 14px;
+}
+
+.verify-btn{
+    padding: 12px 16px;
+}
+
+.verify-label{
+    display:block;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: rgba(255,255,255,0.92);
+}
+
+.otp-box{
+    display:flex;
+    flex-direction:column;
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+.otp-input{
+    width:100%;
+    padding: 14px 16px;
+    font-size: 18px;
+    letter-spacing: 0.6px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(2,6,23,0.35);
+    color: #fff;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.otp-input::placeholder{
+    color: rgba(255,255,255,0.45);
+}
+
+.otp-input:focus{
+    border-color: rgba(79,140,255,0.75);
+    box-shadow: 0 0 0 4px rgba(79,140,255,0.18);
+}
+
+.otp-hint{
+    display:flex;
+    align-items:center;
+    gap: 10px;
+    color: rgba(255,255,255,0.65);
+    font-size: 13px;
+}
+
+.verify-btn{
+    border-radius: 14px;
+    font-weight: 800;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #4f8cff, #6366f1) !important;
+    border: none !important;
+}
+
+.verify-btn:hover{
+    filter: brightness(1.05);
+    transform: translateY(-1px);
+}
+
+.verify-back{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap: 8px;
+    color: rgba(255,255,255,0.8);
+    font-weight: 600;
+}
+
+.verify-back:hover{
+    color: #fff;
+    text-decoration: none;
+}
+
+
+

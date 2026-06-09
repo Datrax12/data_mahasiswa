@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="verify-wrapper">
+  <div class="verify-card">
+
+    <div class="verify-layout">
+      <!-- Kolom kiri: semua konten verifikasi -->
+      <div class="verify-left">
+        <div class="verify-header">
+          <div class="verify-badge">
+            <i class="bi bi-shield-check"></i>
+          </div>
+          <h2 class="verify-title">Verifikasi OTP</h2>
+          <p class="verify-subtitle mb-0">Masukkan 6 digit kode yang dikirim ke email Anda. Kode berlaku sementara.</p>
+        </div>
+
+        <form method="POST" class="verify-form" autocomplete="off">
+
+          <label class="verify-label" for="otp">Kode OTP (6 Digit)</label>
+
+          <div class="otp-box">
+            <input
+              id="otp"
+              type="text"
+              name="otp"
+              inputmode="numeric"
+              pattern="\d{6}"
+              placeholder="123456"
+              maxlength="6"
+              class="otp-input"
+              required
+            />
+            <div class="otp-hint">
+              <i class="bi bi-key"></i>
+              <span>Kode hanya berlaku sebentar.</span>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100 verify-btn">
+            <i class="bi bi-check-circle me-2"></i>
+            Verifikasi
+          </button>
+
+        </form>
+
+        <form method="POST" action="/resend-otp" class="resend-form">
+          <button type="submit" class="btn btn-outline-light w-100 verify-btn" style="opacity:0.95;">
+            <i class="bi bi-arrow-repeat me-2"></i>
+            Kirim ulang kode OTP
+          </button>
+        </form>
+
+          <div class="mt-3">
+            <a class="verify-back" href="/login">
+              <i class="bi bi-arrow-left"></i> Kembali ke Login
+            </a>
+          </div>
+
+      </div>
+
+
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
+
