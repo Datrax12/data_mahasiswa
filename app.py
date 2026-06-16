@@ -5,9 +5,12 @@ import random
 import re
 
 from collections import Counter
-from flask import Flask, flash, redirect, render_template, request, session
+from io import BytesIO
+
+from flask import Flask, flash, redirect, render_template, request, session, send_file
 from werkzeug.utils import secure_filename
 from models import Mahasiswa
+
 
 from email_service import send_otp
 from utils import (
@@ -382,25 +385,37 @@ def merge_sort_data():
 
 
 # ==========================================
-# EXPORT CSV
+# EXPORT CSV (Download)
 # ==========================================
 @app.route("/export")
 def export_csv():
     try:
-        with open("data/mahasiswa.json", "r") as file:
+        with open("data/mahasiswa.json", "r", encoding="utf-8") as file:
             data = json.load(file)
     except (FileNotFoundError, json.JSONDecodeError):
         data = []
 
-    with open("data/mahasiswa_export.csv", "w", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        writer.writerow(["NIM", "Nama", "Jurusan"])
+    # Generate CSV in-memory so it works reliably on serverless/Vercel.
+    output = BytesIO()
+    writer = csv.writer(output)
+    writer.writerow(["NIM", "Nama", "Jurusan"])
 
-        for mhs in data:
-            writer.writerow([mhs["nim"], mhs["nama"], mhs["jurusan"]])
+    for mhs in data:
+        # Avoid KeyError if data structure is unexpected
+        nim = mhs.get("nim", "")
+        nama = mhs.get("nama", "")
+        jurusan = mhs.get("jurusan", "")
+        writer.writerow([nim, nama, jurusan])
 
-    flash("✅ Export CSV berhasil!")
-    return redirect("/mahasiswa")
+    output.seek(0)
+
+    return send_file(
+        output,
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name="mahasiswa_export.csv",
+    )
+
 
 
 # ==========================================
