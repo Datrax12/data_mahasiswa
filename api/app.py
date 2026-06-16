@@ -1,17 +1,13 @@
-"""ASGI entrypoint untuk Flask di Vercel.
+"""Wrapper agar tidak ada Flask/entrypoint duplikat.
 
-Catatan:
-- Vercel akan mencari handler/default export tertentu.
-- Kita sediakan beberapa nama callable agar kompatibel.
+Project ini sudah punya entrypoint Vercel di `api/index.py`.
+File ini dibuat supaya kalau ada tooling/deploy yang mengarah ke `api/app.py`,
+semuanya tetap memakai Flask app yang sama (root `app.py`).
 """
-
-from asgiref.wsgi import WsgiToAsgi
 
 from app import app as flask_app
 
-asgi_app = WsgiToAsgi(flask_app)
+app = flask_app
+handler = flask_app
 
-# Beberapa alias agar Vercel/APM bisa menemukan callable
-app = asgi_app
-handler = asgi_app
 

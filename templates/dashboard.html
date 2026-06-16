@@ -29,26 +29,35 @@ href="{{ url_for('static', filename='style.css') }}"
             box-sizing:border-box;
         }
 
+        a{ color: inherit; }
+
+
+        html, body{
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+
         body{
             background:#0f172a;
             color:white;
             font-family:'Segoe UI',sans-serif;
-            overflow-x:hidden;
         }
 
-        .sidebar{
-            width:260px;
+
+.sidebar{
+            width:240px;
             height:100vh;
             background:#111827;
             position:fixed;
             left:0;
             top:0;
             border-right:1px solid rgba(255,255,255,0.1);
-            padding:20px;
+            padding:16px;
         }
 
-        .logo{
-            font-size:28px;
+.logo{
+            font-size:24px;
             font-weight:bold;
             color:#60a5fa;
         }
@@ -107,20 +116,25 @@ href="{{ url_for('static', filename='style.css') }}"
             transform:translateX(5px);
         }
 
-        .main{
-            margin-left:260px;
-            padding:30px;
+.main{
+            margin-left:240px;
+            padding:20px;
+            width: calc(100% - 240px);
+            min-height: 100vh;
+            overflow-x: hidden;
+            max-width: 100%;
         }
 
-        .welcome{
+
+.welcome{
             background:linear-gradient(
                 135deg,
                 #2563eb,
                 #3b82f6
             );
-            padding:25px;
-            border-radius:20px;
-            margin-bottom:25px;
+            padding:18px;
+            border-radius:16px;
+            margin-bottom:18px;
         }
 
         .stat-card{
@@ -159,21 +173,23 @@ href="{{ url_for('static', filename='style.css') }}"
             );
         }
 
-        .stat-icon{
-            font-size:40px;
+.stat-icon{
+            font-size:32px;
         }
 
-        .quick-action{
+.quick-action{
             background:#1e293b;
-            padding:20px;
-            border-radius:20px;
-            margin-top:25px;
+            padding:14px;
+            border-radius:16px;
+            margin-top:14px;
+            border:1px solid rgba(255,255,255,0.12);
+            box-shadow: 0 0 0 1px rgba(96,165,250,0.08) inset;
         }
 
-        .feature-box{
+.feature-box{
             background:#1e293b;
-            border-radius:18px;
-            padding:20px;
+            border-radius:16px;
+            padding:14px;
             height:100%;
             transition:0.3s;
             text-align:center;
@@ -184,24 +200,29 @@ href="{{ url_for('static', filename='style.css') }}"
             background:#273549;
         }
 
-        .btn-action{
-            border-radius:12px;
-            padding:10px 20px;
-            margin:5px;
+.btn-action{
+            border-radius:10px;
+            padding:8px 16px;
+            margin:4px;
+            font-size:0.95rem;
+            border:1px solid rgba(255,255,255,0.12);
+            box-shadow: 0 0 0 1px rgba(96,165,250,0.08) inset;
         }
 
-        .footer-box{
-            margin-top:30px;
+.footer-box{
+            margin-top:20px;
             background:#1e293b;
-            border-radius:20px;
-            padding:20px;
+            border-radius:16px;
+            padding:14px;
         }
 
     </style>
 
 </head>
 
-<body>
+<body class="dashboard-page">
+
+
 
     <!-- SIDEBAR -->
 
@@ -284,7 +305,7 @@ href="{{ url_for('static', filename='style.css') }}"
 
     <div class="main">
 
-        <div class="welcome">
+<div class="welcome text-center">
 
             <h2>
                 👋 Selamat Datang,
@@ -299,11 +320,11 @@ href="{{ url_for('static', filename='style.css') }}"
 
         <!-- STATISTIK -->
 
-        <div class="row g-4">
+<div class="row g-3 justify-content-center">
 
             <div class="col-md-4">
 
-                <div class="card stat-card card-blue">
+<div class="card stat-card card-blue text-center">
 
                     <div class="card-body text-center">
 
@@ -377,9 +398,9 @@ href="{{ url_for('static', filename='style.css') }}"
 
         <!-- QUICK ACTION -->
 
-        <div class="quick-action text-center">
+<div class="quick-action text-center">
 
-            <h5 class="mb-3">
+            <h5 class="mb-2" style="font-size:1rem;">
                 ⚡ Quick Actions
             </h5>
         
@@ -407,7 +428,7 @@ href="{{ url_for('static', filename='style.css') }}"
 
 <!-- FITUR -->
 
-<div class="row g-4 mt-4">
+<div class="row g-3 mt-3" style="margin-left:0; margin-right:0; justify-content:center;">
 
     <!-- SEARCHING -->
     <div class="col-md-4">
@@ -492,7 +513,7 @@ href="{{ url_for('static', filename='style.css') }}"
     </div>
     </div>
 
-    <div class="row mt-4">
+<div class="row mt-3">
 
         <div class="col-12">
     
@@ -500,7 +521,8 @@ href="{{ url_for('static', filename='style.css') }}"
     
                 <h3>⚡ Time Complexity</h3>
     
-                <table class="table table-dark mt-3">
+                <div class="complexity-table-wrap">
+<table class="table table-dark mt-3 complexity-table">
     
                     <thead>
                         <tr>
@@ -512,23 +534,39 @@ href="{{ url_for('static', filename='style.css') }}"
                     <tbody>
     
                         <tr>
-                            <td>Linear Search</td>
-                            <td>O(n)</td>
+                            <td>
+                                <span class="algo-text algo-n">Linear Search</span>
+                            </td>
+                            <td>
+                                <span class="algo-text algo-n">O(n)</span>
+                            </td>
                         </tr>
-    
+
                         <tr>
-                            <td>Binary Search</td>
-                            <td>O(log n)</td>
+                            <td>
+                                <span class="algo-text algo-log">Binary Search</span>
+                            </td>
+                            <td>
+                                <span class="algo-text algo-log">O(log n)</span>
+                            </td>
                         </tr>
-    
+
                         <tr>
-                            <td>Bubble Sort</td>
-                            <td>O(n²)</td>
+                            <td>
+                                <span class="algo-text algo-n2">Bubble Sort</span>
+                            </td>
+                            <td>
+                                <span class="algo-text algo-n2">O(n²)</span>
+                            </td>
                         </tr>
-    
+
                         <tr>
-                            <td>Merge Sort</td>
-                            <td>O(n log n)</td>
+                            <td>
+                                <span class="algo-text algo-nlog">Merge Sort</span>
+                            </td>
+                            <td>
+                                <span class="algo-text algo-nlog">O(n log n)</span>
+                            </td>
                         </tr>
     
                     </tbody>
