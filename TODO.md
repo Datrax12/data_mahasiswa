@@ -1,7 +1,8 @@
-# TODO
+# TODO - Vercel DEPLOYMENT_NOT_FOUND
 
-- [x] Add route `/resend-otp` in app.py to regenerate and resend OTP to registered email, then redirect to `/verify`.
-- [x] Update `templates/verify_otp.html` to include button/form for "Kirim ulang kode OTP" that submits to `/resend-otp` and stays on `/verify`.
-- [ ] Test flow: register -> verify -> resend -> submit new OTP.
-
+- [ ] (Analisis) Pastikan penyebabnya bukan link deployment lama (deployment sudah dihapus/expired) atau domain mengarah ke deployment yang salah.
+- [ ] (Perbaikan repo) Rekreasi `vercel.json` dalam format plain UTF-8 dan pastikan rewrite path benar ke `/api/index`.
+- [ ] (Perbaikan entrypoint) Pastikan hanya ada satu entrypoint yang benar (opsional: bersihkan duplikasi file/alias yang bisa membingungkan Vercel).
+- [ ] Deploy ulang project `data_mahasiswa` di Vercel.
+- [ ] Setelah deploy sukses, tes akses domain untuk memastikan tidak lagi muncul `DEPLOYMENT_NOT_FOUND`.
 

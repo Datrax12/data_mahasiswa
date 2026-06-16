@@ -10,5 +10,17 @@
         "password": "12345",
         "profile_photo": null,
         "username": "ulil"
+    },
+    {
+        "email": "destiarahmayanti2003@gmail.com",
+        "password": "123",
+        "profile_photo": null,
+        "username": "admin"
+    },
+    {
+        "email": "farizhkurnia180605@gmail.com",
+        "password": "123",
+        "profile_photo": null,
+        "username": "farizh"
     }
 ]
