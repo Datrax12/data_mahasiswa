@@ -258,13 +258,17 @@ href="{{ url_for('static', filename='style.css') }}"
 
         <div class="profile-card">
 
+            {% if profile_photo_filename and ("http://" in profile_photo_filename or "https://" in profile_photo_filename) %}
+            <img src="{{ profile_photo_filename }}" class="profile-img" >
+            {% else %}
             <img
-            src="{{ url_for(
-                'static',
-                filename='profile/' ~ profile_photo_filename
-            ) }}"
-            class="profile-img"
-        >
+                src="{{ url_for(
+                    'static',
+                    filename='profile/' ~ profile_photo_filename
+                ) }}"
+                class="profile-img"
+            >
+            {% endif %}
 
             <h6 class="mt-3">{{ username }}</h6>
 

@@ -255,10 +255,14 @@ body{
     <!-- PROFILE (User) + JUDUL -->
     <div class="text-center mb-4">
 
+        {% if profile_photo_filename and ("http://" in profile_photo_filename or "https://" in profile_photo_filename) %}
+        <img src="{{ profile_photo_filename }}" class="profile-img">
+        {% else %}
         <img
             src="/profile/{{ profile_photo_filename }}"
             class="profile-img"
         >
+        {% endif %}
 
         <h5 class="mt-3">{{ username }}</h5>
         <small class="text-secondary">Administrator</small>

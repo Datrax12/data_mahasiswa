@@ -26,6 +26,20 @@ app.secret_key = "mahasiswa123"
 UPLOAD_FOLDER = "static/uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
+# Vercel Blob Storage
+# BLOB_STORAGE: nama storage (bucket) di Vercel, mis. data-mahasiswa-9q7l-blob
+BLOB_STORAGE = os.environ.get("BLOB_STORAGE", "data-mahasiswa-9q7l-blob")
+
+# BLOB_READ_WRITE_TOKEN: token akses read/write untuk upload.
+# Pastikan env var di Vercel ada. (Nama env var bisa BLOB_READ_WRITE_TOKEN atau yang lain.)
+BLOB_READ_WRITE_TOKEN = os.environ.get("BLOB_READ_WRITE_TOKEN", "")
+
+# Untuk menghindari crash saat token env tidak diset.
+BLOB_UPLOAD_ENABLED = bool(BLOB_READ_WRITE_TOKEN)
+
+
+
+
 # Pastikan folder data dan upload sudah ada saat aplikasi berjalan
 os.makedirs("data", exist_ok=True)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -529,80 +543,110 @@ ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 @app.route("/profile/upload", methods=["POST"])
 def upload_profile_photo():
-    # Logging/debug (agar traceback muncul jelas di Vercel logs)
     try:
         print("[profile/upload] start")
         if "username" not in session:
-            print("[profile/upload] no session username")
             return redirect("/login")
 
         file = request.files.get("profile_photo")
-        content_length = request.content_length
-        print("[profile/upload] content_length=", content_length)
-        print("[profile/upload] session username=", session.get("username"))
-
         if not file or not file.filename:
-            print("[profile/upload] file missing")
             flash("❌ Pilih file foto terlebih dahulu")
             return redirect(request.referrer or "/dashboard")
 
         filename = secure_filename(file.filename)
         _, ext = os.path.splitext(filename)
         ext = ext.lower()
-        print("[profile/upload] original_filename=", file.filename)
-        print("[profile/upload] sanitized_filename=", filename)
-        print("[profile/upload] ext=", ext)
 
         if ext not in ALLOWED_EXTENSIONS:
-            print("[profile/upload] unsupported ext")
             flash("❌ Format foto tidak didukung (jpg/jpeg/png/webp)")
             return redirect(request.referrer or "/dashboard")
 
         current_username = session["username"]
-        target_filename = f"{secure_filename(current_username)}{ext}"
+        blob_object_name = f"{secure_filename(current_username)}{ext}"
 
-        print("[profile/upload] target_filename=", target_filename)
+        # Jika token belum ada, fallback ke filesystem agar tidak error total.
+        if not BLOB_READ_WRITE_TOKEN:
+            print("[profile/upload] BLOB_READ_WRITE_TOKEN is empty -> fallback filesystem")
+            profile_dir = "static/profile"
+            os.makedirs(profile_dir, exist_ok=True)
+            target_path = os.path.join(profile_dir, blob_object_name)
+            file.save(target_path)
 
-        profile_dir = "static/profile"
-        print("[profile/upload] ensure dir=", profile_dir)
-        os.makedirs(profile_dir, exist_ok=True)
+            with open("data/users.json", "r") as f:
+                users = json.load(f)
 
-        target_path = os.path.join(profile_dir, target_filename)
-        print("[profile/upload] saving to=", target_path)
-        file.save(target_path)
-        print("[profile/upload] save success")
+            updated = False
+            for u in users:
+                if u.get("username") == current_username:
+                    u["profile_photo"] = blob_object_name
+                    updated = True
+                    break
 
-        # Update users.json
-        print("[profile/upload] reading data/users.json")
+            if not updated:
+                users.append({"username": current_username, "password": "", "email": "", "profile_photo": blob_object_name})
+
+            with open("data/users.json", "w") as f:
+                json.dump(users, f, indent=4)
+
+            flash("✅ Foto profile berhasil diperbarui (local)")
+            return redirect(request.referrer or "/dashboard")
+
+        # Upload ke Vercel Blob via REST
+        import requests
+
+        blob_url = f"https://blob.vercel-storage.com/{blob_object_name}"
+        upload_url = f"https://blob.vercel-storage.com/{BLOB_STORAGE}/{blob_object_name}"
+
+        headers = {
+            "Authorization": f"Bearer {BLOB_READ_WRITE_TOKEN}",
+        }
+
+        file_bytes = file.read()
+        # kembalikan cursor agar tidak error di beberapa server
+        try:
+            file.stream.seek(0)
+        except Exception:
+            pass
+
+        print("[profile/upload] uploading to blob", upload_url)
+        resp = requests.put(
+            upload_url,
+            headers=headers,
+            data=file_bytes,
+            timeout=30,
+        )
+
+        if resp.status_code >= 400:
+            raise RuntimeError(f"Vercel Blob upload failed: {resp.status_code} - {resp.text}")
+
+        # Simpan URL ke users.json agar tampilan pakai URL (bukan filesystem)
+        blob_public_url = blob_url
+
         with open("data/users.json", "r") as f:
             users = json.load(f)
 
         updated = False
         for u in users:
             if u.get("username") == current_username:
-                u["profile_photo"] = target_filename
+                u["profile_photo"] = blob_public_url
                 updated = True
                 break
 
         if not updated:
-            print("[profile/upload] username not found in users.json, fallback append")
-            users.append({"username": current_username, "password": "", "email": "", "profile_photo": target_filename})
+            users.append({"username": current_username, "password": "", "email": "", "profile_photo": blob_public_url})
 
-        print("[profile/upload] writing data/users.json")
         with open("data/users.json", "w") as f:
             json.dump(users, f, indent=4)
 
         flash("✅ Foto profile berhasil diperbarui")
-        print("[profile/upload] done ok")
         return redirect(request.referrer or "/dashboard")
 
     except Exception as e:
-        # Pastikan traceback keluar ke Vercel logs
         import traceback
         print("[profile/upload] ERROR:", repr(e))
         print(traceback.format_exc())
-        # Kembalikan pesan agar tidak blank
         return ("Internal Server Error (debug): " + str(e), 500)
+
 
 
 # ==========================================

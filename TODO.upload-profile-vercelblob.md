@@ -1,11 +1,12 @@
 # TODO: Perbaikan upload foto profile di Vercel (pakai Vercel Blob)
 
 ## Step 1 — Tambahkan integrasi Vercel Blob
-- Update `requirements.txt` jika perlu.
-- Update `app.py`:
-  - Tambah konfigurasi endpoint/headers untuk Vercel Blob.
-  - Ubah `/profile/upload` agar tidak menyimpan ke `static/profile/`.
-  - Upload file ke blob dan simpan `profile_photo_url` ke `data/users.json`.
+- [x] Update `requirements.txt` (add `requests`).
+- [x] Update `app.py`:
+  - [x] Tambah konfigurasi token Vercel Blob.
+  - [x] Ubah `/profile/upload` agar upload ke Vercel Blob (fallback ke filesystem jika token tidak ada).
+  - [x] Simpan URL foto ke `data/users.json` pada field `profile_photo`.
+
 
 ## Step 2 — Update tampilan
 - Update `templates/dashboard.html` agar pakai `profile_photo_url` bila ada.
