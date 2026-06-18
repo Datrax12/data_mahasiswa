@@ -184,13 +184,15 @@ def login():
 # ==========================================
 @app.route("/profile/<path:filename>")
 def profile_file(filename):
-    # Serve profile images through Flask route.
-    # This avoids reliance on Vercel static persistence.
+    # Untuk kompatibilitas, hanya untuk file lokal.
+    # Saat profile_photo adalah URL Vercel Blob, frontend akan bypass route ini.
     profile_dir = "static/profile"
-    try:
-        return send_file(os.path.join(profile_dir, filename))
-    except Exception:
+    path = os.path.join(profile_dir, filename)
+    if not os.path.exists(path):
         abort(404)
+    return send_file(path)
+
+
 
 
 @app.route("/dashboard")
