@@ -518,51 +518,81 @@ ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 @app.route("/profile/upload", methods=["POST"])
 def upload_profile_photo():
-    if "username" not in session:
-        return redirect("/login")
-
-    file = request.files.get("profile_photo")
-    if not file or not file.filename:
-        flash("❌ Pilih file foto terlebih dahulu")
-        return redirect(request.referrer or "/dashboard")
-
-    filename = secure_filename(file.filename)
-    _, ext = os.path.splitext(filename)
-    ext = ext.lower()
-
-    if ext not in ALLOWED_EXTENSIONS:
-        flash("❌ Format foto tidak didukung (jpg/jpeg/png/webp)")
-        return redirect(request.referrer or "/dashboard")
-
-    current_username = session["username"]
-    target_filename = f"{secure_filename(current_username)}{ext}"
-
-    os.makedirs("static/profile", exist_ok=True)
-    file.save(os.path.join("static/profile", target_filename))
-
-    # Update users.json
+    # Logging/debug (agar traceback muncul jelas di Vercel logs)
     try:
+        print("[profile/upload] start")
+        if "username" not in session:
+            print("[profile/upload] no session username")
+            return redirect("/login")
+
+        file = request.files.get("profile_photo")
+        content_length = request.content_length
+        print("[profile/upload] content_length=", content_length)
+        print("[profile/upload] session username=", session.get("username"))
+
+        if not file or not file.filename:
+            print("[profile/upload] file missing")
+            flash("❌ Pilih file foto terlebih dahulu")
+            return redirect(request.referrer or "/dashboard")
+
+        filename = secure_filename(file.filename)
+        _, ext = os.path.splitext(filename)
+        ext = ext.lower()
+        print("[profile/upload] original_filename=", file.filename)
+        print("[profile/upload] sanitized_filename=", filename)
+        print("[profile/upload] ext=", ext)
+
+        if ext not in ALLOWED_EXTENSIONS:
+            print("[profile/upload] unsupported ext")
+            flash("❌ Format foto tidak didukung (jpg/jpeg/png/webp)")
+            return redirect(request.referrer or "/dashboard")
+
+        current_username = session["username"]
+        target_filename = f"{secure_filename(current_username)}{ext}"
+
+        print("[profile/upload] target_filename=", target_filename)
+
+        profile_dir = "static/profile"
+        print("[profile/upload] ensure dir=", profile_dir)
+        os.makedirs(profile_dir, exist_ok=True)
+
+        target_path = os.path.join(profile_dir, target_filename)
+        print("[profile/upload] saving to=", target_path)
+        file.save(target_path)
+        print("[profile/upload] save success")
+
+        # Update users.json
+        print("[profile/upload] reading data/users.json")
         with open("data/users.json", "r") as f:
             users = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        users = []
 
-    updated = False
-    for u in users:
-        if u.get("username") == current_username:
-            u["profile_photo"] = target_filename
-            updated = True
-            break
+        updated = False
+        for u in users:
+            if u.get("username") == current_username:
+                u["profile_photo"] = target_filename
+                updated = True
+                break
 
-    if not updated:
-        # Fallback: store minimal user entry if not found (shouldn't happen)
-        users.append({"username": current_username, "password": "", "email": "", "profile_photo": target_filename})
+        if not updated:
+            print("[profile/upload] username not found in users.json, fallback append")
+            users.append({"username": current_username, "password": "", "email": "", "profile_photo": target_filename})
 
-    with open("data/users.json", "w") as f:
-        json.dump(users, f, indent=4)
+        print("[profile/upload] writing data/users.json")
+        with open("data/users.json", "w") as f:
+            json.dump(users, f, indent=4)
 
-    flash("✅ Foto profile berhasil diperbarui")
-    return redirect(request.referrer or "/dashboard")
+        flash("✅ Foto profile berhasil diperbarui")
+        print("[profile/upload] done ok")
+        return redirect(request.referrer or "/dashboard")
+
+    except Exception as e:
+        # Pastikan traceback keluar ke Vercel logs
+        import traceback
+        print("[profile/upload] ERROR:", repr(e))
+        print(traceback.format_exc())
+        # Kembalikan pesan agar tidak blank
+        return ("Internal Server Error (debug): " + str(e), 500)
+
 
 # ==========================================
 # RUN APPLICATION
