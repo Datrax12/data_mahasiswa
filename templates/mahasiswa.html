@@ -256,10 +256,7 @@ body{
     <div class="text-center mb-4">
 
         <img
-            src="{{ url_for(
-                'static',
-                filename='profile/' ~ profile_photo_filename
-            ) }}"
+            src="/profile/{{ profile_photo_filename }}"
             class="profile-img"
         >
 

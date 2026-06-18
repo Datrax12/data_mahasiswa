@@ -7,7 +7,7 @@ import re
 from collections import Counter
 from io import BytesIO
 
-from flask import Flask, flash, redirect, render_template, request, session, send_file
+from flask import Flask, flash, redirect, render_template, request, session, send_file, abort
 from werkzeug.utils import secure_filename
 from models import Mahasiswa
 
@@ -168,6 +168,17 @@ def login():
 # ==========================================
 # DASHBOARD
 # ==========================================
+@app.route("/profile/<path:filename>")
+def profile_file(filename):
+    # Serve profile images through Flask route.
+    # This avoids reliance on Vercel static persistence.
+    profile_dir = "static/profile"
+    try:
+        return send_file(os.path.join(profile_dir, filename))
+    except Exception:
+        abort(404)
+
+
 @app.route("/dashboard")
 def dashboard():
 
