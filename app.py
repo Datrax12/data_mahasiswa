@@ -606,9 +606,45 @@ def upload_profile_photo():
 
 
 # ==========================================
+# GLOBAL ERROR HANDLER
+# ==========================================
+# Pastikan traceback/penyebab muncul di log (terutama untuk deploy serverless/Vercel)
+@app.errorhandler(Exception)
+def handle_exception(e):
+    import traceback
+
+    # Log exception + traceback
+    print("[global] Unhandled exception:", repr(e))
+    print(traceback.format_exc())
+
+    # Pastikan user tidak mendapatkan respon blank saat request dari halaman HTML
+    try:
+        if request and request.path and "login" in request.path:
+            return ("Internal Server Error", 500)
+
+        # Jika user sudah login, arahkan ke dashboard, kalau belum ke login
+        if "username" in session:
+            flash("❌ Terjadi kesalahan pada server. Coba lagi.", "danger")
+            return redirect("/dashboard")
+        flash("❌ Terjadi kesalahan pada server. Silakan login ulang.", "danger")
+        return redirect("/login")
+    except Exception:
+        # Fallback sederhana
+        return ("Internal Server Error", 500)
+
+
+@app.errorhandler(500)
+def handle_500(e):
+    # e bisa berupa string atau exception object
+    print("[global] 500 error:", repr(e))
+    return ("Internal Server Error", 500)
+
+
+# ==========================================
 # RUN APPLICATION
 # ==========================================
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
