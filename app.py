@@ -53,13 +53,17 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 # Vercel Blob Storage
 # BLOB_STORE_ID: id storage (bucket) di Vercel
-BLOB_STORE_ID = os.environ.get("BLOB_STORE_ID", "store_9banKO2BrHyI3z8f")
+BLOB_STORE_ID = os.environ.get("BLOB_STORE_ID")
 
 # BLOB_READ_WRITE_TOKEN: token akses read/write untuk upload.
-# NOTE: ini default untuk development; pastikan di Vercel pakai env var agar aman.
-BLOB_READ_WRITE_TOKEN = os.environ.get(
-    "BLOB_READ_WRITE_TOKEN",
-    "vercel_blob_rw_9banKO2BrHyI3z8f_esppA87QdNwaJwJPKwUrbYa3WTc9Nk",
+# NOTE: HAPUS default token/store yang hardcoded. Token mismatch biasanya terjadi karena token tidak cocok dengan store.
+BLOB_READ_WRITE_TOKEN = os.environ.get("BLOB_READ_WRITE_TOKEN")
+
+# Base URL publik untuk ditampilkan di frontend.
+# Jika bucket/store private, URL ini mungkin tidak bisa diakses publik (solusi signed URL di luar scope).
+BLOB_PUBLIC_BASE_URL = os.environ.get(
+    "BLOB_PUBLIC_BASE_URL",
+    "https://blob.vercel-storage.com",
 )
 
 # Untuk kompatibilitas kode yang sudah ada
@@ -67,6 +71,7 @@ BLOB_STORAGE = os.environ.get("BLOB_STORAGE", BLOB_STORE_ID)
 
 # Untuk menghindari crash saat token env tidak diset.
 BLOB_UPLOAD_ENABLED = bool(BLOB_READ_WRITE_TOKEN)
+
 
 
 
@@ -730,18 +735,42 @@ def upload_profile_photo():
         upload_url = f"https://blob.vercel-storage.com/{BLOB_STORE_ID}/{blob_object_name}"
 
 
+        # Validasi sebelum upload (supaya errornya jelas)
+        if not BLOB_STORE_ID or not BLOB_READ_WRITE_TOKEN:
+            raise RuntimeError(
+                "Vercel Blob config missing. Pastikan env var di Vercel: BLOB_STORE_ID dan BLOB_READ_WRITE_TOKEN (token harus cocok dengan store)."
+            )
+
         headers = {
             "Authorization": f"Bearer {BLOB_READ_WRITE_TOKEN}",
         }
 
         file_bytes = file.read()
+
         # kembalikan cursor agar tidak error di beberapa server
         try:
             file.stream.seek(0)
         except Exception:
             pass
 
-        print("[profile/upload] uploading to blob", upload_url)
+        # Debug aman (jangan print token)
+        print(
+            "[profile/upload] blob config:",
+            "BLOB_STORE_ID=",
+            bool(BLOB_STORE_ID),
+            "token_set=",
+            bool(BLOB_READ_WRITE_TOKEN),
+            "upload_url=",
+            upload_url,
+        )
+
+        # Validasi minimal agar error tidak membingungkan
+        if not BLOB_STORE_ID or not BLOB_READ_WRITE_TOKEN:
+            raise RuntimeError(
+                "Vercel Blob config missing. Pastikan env var di Vercel: BLOB_STORE_ID dan BLOB_READ_WRITE_TOKEN (token harus cocok dengan store)."
+            )
+
+        print("[profile/upload] uploading to blob")
         resp = requests.put(
             upload_url,
             headers=headers,
@@ -752,12 +781,10 @@ def upload_profile_photo():
         if resp.status_code >= 400:
             raise RuntimeError(f"Vercel Blob upload failed: {resp.status_code} - {resp.text}")
 
-        # Simpan URL Blob
-        # Catatan: kalau store private, URL "upload_url" mungkin tidak bisa diakses publik.
-        # Tetap simpan supaya UI bisa menampilkan (jika store diubah ke public) atau untuk debug.
-        # Simpan URL blob untuk ditampilkan. Jika store private, browser tidak bisa akses URL publik.
-        # Saat ini kita simpan upload_url; untuk private store, seharusnya pakai signed URL (di luar scope ini).
-        blob_public_url = f"https://blob.vercel-storage.com/{blob_object_name}"
+        # URL publik untuk ditampilkan di frontend
+        blob_public_url = f"{BLOB_PUBLIC_BASE_URL}/{blob_object_name}"
+
+
 
 
 
