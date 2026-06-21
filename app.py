@@ -4,6 +4,16 @@ import os
 import random
 import re
 
+# Load local .env (development only)
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except Exception:
+    # dotenv may not be installed in prod; env vars on Vercel are provided automatically
+    pass
+
+
 from collections import Counter
 from io import BytesIO
 
@@ -11,28 +21,49 @@ from flask import Flask, flash, redirect, render_template, request, session, sen
 from werkzeug.utils import secure_filename
 from models import Mahasiswa
 
-
 from email_service import send_otp
 from utils import (
     bubble_sort,
     linear_search,
     merge_sort,
-    binary_search
+    binary_search,
 )
+
+# MySQL (Filess.io compatible)
+from db_filessio import (
+    ensure_tables as mysql_ensure_tables,
+    users_find_by_credentials,
+    users_find_by_username,
+    users_create,
+    users_update_profile_photo,
+    mahasiswa_list,
+    mahasiswa_create,
+    mahasiswa_delete,
+    mahasiswa_update,
+    mahasiswa_get_by_nim,
+)
+
 
 app = Flask(__name__)
 app.secret_key = "mahasiswa123"
+
 
 UPLOAD_FOLDER = "static/uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 # Vercel Blob Storage
-# BLOB_STORAGE: nama storage (bucket) di Vercel, mis. data-mahasiswa-9q7l-blob
-BLOB_STORAGE = os.environ.get("BLOB_STORAGE", "data-mahasiswa-9q7l-blob")
+# BLOB_STORE_ID: id storage (bucket) di Vercel
+BLOB_STORE_ID = os.environ.get("BLOB_STORE_ID", "store_9banKO2BrHyI3z8f")
 
 # BLOB_READ_WRITE_TOKEN: token akses read/write untuk upload.
-# Pastikan env var di Vercel ada. (Nama env var bisa BLOB_READ_WRITE_TOKEN atau yang lain.)
-BLOB_READ_WRITE_TOKEN = os.environ.get("BLOB_READ_WRITE_TOKEN", "")
+# NOTE: ini default untuk development; pastikan di Vercel pakai env var agar aman.
+BLOB_READ_WRITE_TOKEN = os.environ.get(
+    "BLOB_READ_WRITE_TOKEN",
+    "vercel_blob_rw_9banKO2BrHyI3z8f_esppA87QdNwaJwJPKwUrbYa3WTc9Nk",
+)
+
+# Untuk kompatibilitas kode yang sudah ada
+BLOB_STORAGE = os.environ.get("BLOB_STORAGE", BLOB_STORE_ID)
 
 # Untuk menghindari crash saat token env tidak diset.
 BLOB_UPLOAD_ENABLED = bool(BLOB_READ_WRITE_TOKEN)
@@ -40,9 +71,18 @@ BLOB_UPLOAD_ENABLED = bool(BLOB_READ_WRITE_TOKEN)
 
 
 
+
 # Pastikan folder data dan upload sudah ada saat aplikasi berjalan
 os.makedirs("data", exist_ok=True)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Ensure MySQL tables (with fallback to filesystem if DB not configured)
+try:
+    mysql_ensure_tables()
+except Exception as e:
+    # tetap jalankan agar dev tidak crash
+    print("[mysql] ensure_tables failed, fallback to JSON mode:", repr(e))
+
 
 
 # ==========================================
@@ -104,21 +144,34 @@ def verify():
         user_otp = request.form["otp"]
 
         if user_otp == session.get("otp"):
-            try:
-                with open("data/users.json", "r") as file:
-                    users = json.load(file)
-            except (FileNotFoundError, json.JSONDecodeError):
-                users = []
-
             temp_user = session["temp_user"].copy()
-            # ensure field exists for older sessions
             if "profile_photo" not in temp_user:
                 temp_user["profile_photo"] = None
 
-            users.append(temp_user)
+            # Write to MySQL first, fallback to JSON if MySQL not configured.
+            mysql_ok = False
+            try:
+                users_create(
+                    username=temp_user["username"],
+                    password=temp_user["password"],
+                    email=temp_user["email"],
+                    profile_photo=temp_user.get("profile_photo"),
+                )
+                mysql_ok = True
+            except Exception as e:
+                print("[mysql] users_create failed, fallback to JSON:", repr(e))
 
-            with open("data/users.json", "w") as file:
-                json.dump(users, file, indent=4)
+            if not mysql_ok:
+                try:
+                    with open("data/users.json", "r") as file:
+                        users = json.load(file)
+                except (FileNotFoundError, json.JSONDecodeError):
+                    users = []
+
+                users.append(temp_user)
+
+                with open("data/users.json", "w") as file:
+                    json.dump(users, file, indent=4)
 
             # login otomatis setelah OTP berhasil
             session["username"] = temp_user["username"]
@@ -127,8 +180,8 @@ def verify():
         flash("❌ OTP salah. Silakan coba lagi.", "danger")
         return redirect("/verify")
 
-
     return render_template("verify_otp.html")
+
 
 
 # ==========================================
@@ -163,6 +216,18 @@ def login():
         username = request.form["username"]
         password = request.form["password"]
 
+        # MySQL first
+        mysql_ok = False
+        try:
+            user = users_find_by_credentials(username=username, password=password)
+            if user:
+                session["username"] = username
+                mysql_ok = True
+                return redirect("/dashboard")
+        except Exception as e:
+            print("[mysql] login query failed, fallback to JSON:", repr(e))
+
+        # fallback JSON
         try:
             with open("data/users.json", "r") as file:
                 users = json.load(file)
@@ -174,9 +239,13 @@ def login():
                 session["username"] = username
                 return redirect("/dashboard")
 
+        if not mysql_ok:
+            return "Username atau Password Salah"
+
         return "Username atau Password Salah"
 
     return render_template("login.html")
+
 
 
 # ==========================================
@@ -198,48 +267,49 @@ def profile_file(filename):
 @app.route("/dashboard")
 def dashboard():
 
-
     if "username" not in session:
         return redirect("/login")
 
+    # mahasiswa list (MySQL first, fallback JSON)
+    data = []
     try:
-
-        with open("data/mahasiswa.json", "r") as file:
-            data = json.load(file)
-
-    except:
-        data = []
+        rows = mahasiswa_list()  # [{nim, nama, jurusan}, ...]
+        data = [{"nim": r.get("nim"), "nama": r.get("nama"), "jurusan": r.get("jurusan")} for r in rows]
+    except Exception as e:
+        print("[mysql] mahasiswa_list failed, fallback to JSON:", repr(e))
+        try:
+            with open("data/mahasiswa.json", "r") as file:
+                data = json.load(file)
+        except Exception:
+            data = []
 
     total_mahasiswa = len(data)
 
-    jurusan_list = []
-
-    for mhs in data:
-        jurusan_list.append(mhs["jurusan"])
+    jurusan_list = [mhs.get("jurusan") for mhs in data if mhs.get("jurusan")]
 
     if jurusan_list:
-
-        jurusan_terbanyak = Counter(
-            jurusan_list
-        ).most_common(1)[0][0]
-
+        jurusan_terbanyak = Counter(jurusan_list).most_common(1)[0][0]
     else:
-
         jurusan_terbanyak = "-"
 
-    # Resolve profile photo
+    # Resolve profile photo (MySQL first, fallback JSON)
     profile_photo_filename = "admin.jpeg"
+    current_username = session.get("username")
     try:
-        with open("data/users.json", "r") as file:
-            users = json.load(file)
-        current_username = session["username"]
-        for u in users:
-            if u.get("username") == current_username:
-                if u.get("profile_photo"):
+        u = users_find_by_username(current_username)
+        if u and u.get("profile_photo"):
+            profile_photo_filename = u.get("profile_photo")
+    except Exception as e:
+        print("[mysql] users_find_by_username failed, fallback to JSON:", repr(e))
+        try:
+            with open("data/users.json", "r") as file:
+                users = json.load(file)
+            for u in users:
+                if u.get("username") == current_username and u.get("profile_photo"):
                     profile_photo_filename = u.get("profile_photo")
-                break
-    except:
-        pass
+                    break
+        except Exception:
+            pass
 
     return render_template(
         "dashboard.html",
@@ -247,8 +317,9 @@ def dashboard():
         profile_photo_filename=profile_photo_filename,
         total_mahasiswa=total_mahasiswa,
         rata_ipk="3.50",
-        jurusan_terbanyak=jurusan_terbanyak
+        jurusan_terbanyak=jurusan_terbanyak,
     )
+
 
 
 # ==========================================
@@ -257,26 +328,40 @@ def dashboard():
 @app.route("/mahasiswa")
 def mahasiswa():
 
+    data_mahasiswa = []
+    # MySQL first, fallback JSON
     try:
-        with open("data/mahasiswa.json", "r") as file:
-            data_mahasiswa = json.load(file)
+        rows = mahasiswa_list()
+        data_mahasiswa = [
+            {"nim": r.get("nim"), "nama": r.get("nama"), "jurusan": r.get("jurusan")}
+            for r in rows
+        ]
+    except Exception as e:
+        print("[mysql] mahasiswa_list failed, fallback to JSON:", repr(e))
+        try:
+            with open("data/mahasiswa.json", "r") as file:
+                data_mahasiswa = json.load(file)
+        except Exception:
+            data_mahasiswa = []
 
-    except:
-        data_mahasiswa = []
-
-    # Resolve profile photo (same logic as dashboard)
+    # Resolve profile photo (MySQL first)
     profile_photo_filename = "admin.jpeg"
+    current_username = session.get("username")
     try:
-        with open("data/users.json", "r") as file:
-            users = json.load(file)
-        current_username = session.get("username")
-        for u in users:
-            if u.get("username") == current_username:
-                if u.get("profile_photo"):
+        u = users_find_by_username(current_username)
+        if u and u.get("profile_photo"):
+            profile_photo_filename = u.get("profile_photo")
+    except Exception as e:
+        print("[mysql] users_find_by_username failed, fallback to JSON:", repr(e))
+        try:
+            with open("data/users.json", "r") as file:
+                users = json.load(file)
+            for u in users:
+                if u.get("username") == current_username and u.get("profile_photo"):
                     profile_photo_filename = u.get("profile_photo")
-                break
-    except:
-        pass
+                    break
+        except Exception:
+            pass
 
     return render_template(
         "mahasiswa.html",
@@ -284,6 +369,7 @@ def mahasiswa():
         username=session.get("username", "Admin"),
         profile_photo_filename=profile_photo_filename,
     )
+
 
 
 
@@ -298,34 +384,33 @@ def tambah():
     jurusan = request.form["jurusan"]
 
     if not re.match(r"^\d+$", nim):
-
         flash("❌ NIM hanya boleh berisi angka!")
         return redirect("/mahasiswa")
 
+    # MySQL first, fallback JSON
+    mysql_ok = False
     try:
+        mhs = Mahasiswa(nim, nama, jurusan)
+        mahasiswa_create(nim=mhs.nim, nama=mhs.nama, jurusan=mhs.jurusan)
+        mysql_ok = True
+    except Exception as e:
+        print("[mysql] mahasiswa_create failed, fallback to JSON:", repr(e))
 
-        with open("data/mahasiswa.json", "r") as file:
-            data = json.load(file)
+    if not mysql_ok:
+        try:
+            with open("data/mahasiswa.json", "r") as file:
+                data = json.load(file)
+        except Exception:
+            data = []
 
-    except:
-        data = []
+        mhs = Mahasiswa(nim, nama, jurusan)
+        data.append({"nim": mhs.nim, "nama": mhs.nama, "jurusan": mhs.jurusan})
 
-    mhs = Mahasiswa(
-        nim,
-        nama,
-        jurusan
-    )
-
-    data.append({
-        "nim": mhs.nim,
-        "nama": mhs.nama,
-        "jurusan": mhs.jurusan
-    })
-
-    with open("data/mahasiswa.json", "w") as file:
-        json.dump(data, file, indent=4)
+        with open("data/mahasiswa.json", "w") as file:
+            json.dump(data, file, indent=4)
 
     return redirect("/mahasiswa")
+
 
 
 # ==========================================
@@ -333,18 +418,27 @@ def tambah():
 # ==========================================
 @app.route("/hapus/<nim>")
 def hapus(nim):
+    mysql_ok = False
     try:
-        with open("data/mahasiswa.json", "r") as file:
-            data = json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        data = []
+        mahasiswa_delete(nim)
+        mysql_ok = True
+    except Exception as e:
+        print("[mysql] mahasiswa_delete failed, fallback to JSON:", repr(e))
 
-    data_baru = [mhs for mhs in data if mhs["nim"] != nim]
+    if not mysql_ok:
+        try:
+            with open("data/mahasiswa.json", "r") as file:
+                data = json.load(file)
+        except (FileNotFoundError, json.JSONDecodeError):
+            data = []
 
-    with open("data/mahasiswa.json", "w") as file:
-        json.dump(data_baru, file, indent=4)
+        data_baru = [mhs for mhs in data if mhs.get("nim") != nim]
+
+        with open("data/mahasiswa.json", "w") as file:
+            json.dump(data_baru, file, indent=4)
 
     return redirect("/mahasiswa")
+
 
 
 # ==========================================
@@ -450,33 +544,58 @@ def export_csv():
 # ==========================================
 @app.route("/edit/<nim>", methods=["GET", "POST"])
 def edit(nim):
-    try:
-        with open("data/mahasiswa.json", "r") as file:
-            data = json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        data = []
-
     if request.method == "POST":
         nama_baru = request.form["nama"]
         jurusan_baru = request.form["jurusan"]
 
-        for mhs in data:
-            if mhs["nim"] == nim:
-                mhs["nama"] = nama_baru
-                mhs["jurusan"] = jurusan_baru
+        mysql_ok = False
+        try:
+            mahasiswa_update(nim=nim, nama=nama_baru, jurusan=jurusan_baru)
+            mysql_ok = True
+        except Exception as e:
+            print("[mysql] mahasiswa_update failed, fallback to JSON:", repr(e))
 
-        with open("data/mahasiswa.json", "w") as file:
-            json.dump(data, file, indent=4)
+        if not mysql_ok:
+            try:
+                with open("data/mahasiswa.json", "r") as file:
+                    data = json.load(file)
+            except (FileNotFoundError, json.JSONDecodeError):
+                data = []
+
+            for mhs in data:
+                if mhs.get("nim") == nim:
+                    mhs["nama"] = nama_baru
+                    mhs["jurusan"] = jurusan_baru
+
+            with open("data/mahasiswa.json", "w") as file:
+                json.dump(data, file, indent=4)
 
         return redirect("/mahasiswa")
 
+    # GET
     mahasiswa_dipilih = None
-    for mhs in data:
-        if mhs["nim"] == nim:
-            mahasiswa_dipilih = mhs
-            break
+    try:
+        mhs = mahasiswa_get_by_nim(nim)
+    except Exception as e:
+        mhs = None
+        print("[mysql] mahasiswa_get_by_nim failed, fallback to JSON:", repr(e))
+
+    if mhs:
+        mahasiswa_dipilih = {"nim": mhs.get("nim"), "nama": mhs.get("nama"), "jurusan": mhs.get("jurusan")}
+    else:
+        try:
+            with open("data/mahasiswa.json", "r") as file:
+                data = json.load(file)
+        except (FileNotFoundError, json.JSONDecodeError):
+            data = []
+
+        for m in data:
+            if m.get("nim") == nim:
+                mahasiswa_dipilih = m
+                break
 
     return render_template("edit.html", mahasiswa=mahasiswa_dipilih)
+
 
 
 # ==========================================
@@ -560,7 +679,7 @@ def upload_profile_photo():
         ext = ext.lower()
 
         if ext not in ALLOWED_EXTENSIONS:
-            flash("❌ Format foto tidak didukung (jpg/jpeg/png/webp)")
+            flash("❌ Format foto tidahttps://9banko2brhyi3z8f.private.blob.vercel-storage.comk didukung (jpg/jpeg/png/webp)")
             return redirect(request.referrer or "/dashboard")
 
         current_username = session["username"]
@@ -574,30 +693,42 @@ def upload_profile_photo():
             target_path = os.path.join(profile_dir, blob_object_name)
             file.save(target_path)
 
-            with open("data/users.json", "r") as f:
-                users = json.load(f)
+            # update profile_photo ke MySQL dulu (kalau bisa)
+            mysql_ok = False
+            try:
+                users_update_profile_photo(username=current_username, profile_photo=blob_object_name)
+                mysql_ok = True
+            except Exception as e:
+                print("[mysql] users_update_profile_photo failed, fallback to JSON:", repr(e))
 
-            updated = False
-            for u in users:
-                if u.get("username") == current_username:
-                    u["profile_photo"] = blob_object_name
-                    updated = True
-                    break
+            if not mysql_ok:
+                with open("data/users.json", "r") as f:
+                    users = json.load(f)
 
-            if not updated:
-                users.append({"username": current_username, "password": "", "email": "", "profile_photo": blob_object_name})
+                updated = False
+                for u in users:
+                    if u.get("username") == current_username:
+                        u["profile_photo"] = blob_object_name
+                        updated = True
+                        break
 
-            with open("data/users.json", "w") as f:
-                json.dump(users, f, indent=4)
+                if not updated:
+                    users.append({"username": current_username, "password": "", "email": "", "profile_photo": blob_object_name})
+
+                with open("data/users.json", "w") as f:
+                    json.dump(users, f, indent=4)
 
             flash("✅ Foto profile berhasil diperbarui (local)")
             return redirect(request.referrer or "/dashboard")
+
 
         # Upload ke Vercel Blob via REST
         import requests
 
         blob_url = f"https://blob.vercel-storage.com/{blob_object_name}"
-        upload_url = f"https://blob.vercel-storage.com/{BLOB_STORAGE}/{blob_object_name}"
+
+        upload_url = f"https://blob.vercel-storage.com/{BLOB_STORE_ID}/{blob_object_name}"
+
 
         headers = {
             "Authorization": f"Bearer {BLOB_READ_WRITE_TOKEN}",
@@ -621,27 +752,44 @@ def upload_profile_photo():
         if resp.status_code >= 400:
             raise RuntimeError(f"Vercel Blob upload failed: {resp.status_code} - {resp.text}")
 
-        # Simpan URL ke users.json agar tampilan pakai URL (bukan filesystem)
-        blob_public_url = blob_url
+        # Simpan URL Blob
+        # Catatan: kalau store private, URL "upload_url" mungkin tidak bisa diakses publik.
+        # Tetap simpan supaya UI bisa menampilkan (jika store diubah ke public) atau untuk debug.
+        # Simpan URL blob untuk ditampilkan. Jika store private, browser tidak bisa akses URL publik.
+        # Saat ini kita simpan upload_url; untuk private store, seharusnya pakai signed URL (di luar scope ini).
+        blob_public_url = f"https://blob.vercel-storage.com/{blob_object_name}"
 
-        with open("data/users.json", "r") as f:
-            users = json.load(f)
 
-        updated = False
-        for u in users:
-            if u.get("username") == current_username:
-                u["profile_photo"] = blob_public_url
-                updated = True
-                break
 
-        if not updated:
-            users.append({"username": current_username, "password": "", "email": "", "profile_photo": blob_public_url})
 
-        with open("data/users.json", "w") as f:
-            json.dump(users, f, indent=4)
+        # update MySQL first, fallback to JSON
+        mysql_ok = False
+        try:
+            users_update_profile_photo(username=current_username, profile_photo=blob_public_url)
+            mysql_ok = True
+        except Exception as e:
+            print("[mysql] users_update_profile_photo failed, fallback to JSON:", repr(e))
+
+        if not mysql_ok:
+            with open("data/users.json", "r") as f:
+                users = json.load(f)
+
+            updated = False
+            for u in users:
+                if u.get("username") == current_username:
+                    u["profile_photo"] = blob_public_url
+                    updated = True
+                    break
+
+            if not updated:
+                users.append({"username": current_username, "password": "", "email": "", "profile_photo": blob_public_url})
+
+            with open("data/users.json", "w") as f:
+                json.dump(users, f, indent=4)
 
         flash("✅ Foto profile berhasil diperbarui")
         return redirect(request.referrer or "/dashboard")
+
 
     except Exception as e:
         import traceback

@@ -1,5 +1,5 @@
 {
   "dependencies": {
-    "@vercel/blob": "^2.4.0"
+    "@vercel/blob": "^2.4.1"
   }
 }

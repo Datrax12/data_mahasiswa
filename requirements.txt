@@ -1,7 +1,11 @@
 flask
 werkzeug
-asgiref
 requests
+mysql-connector-python
+
+# asgiref dibutuhkan bila pakai ASGI framework/adapter tertentu; boleh dihapus jika tidak dipakai.
+asgiref
+
 
 
 
