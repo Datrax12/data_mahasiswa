@@ -260,6 +260,9 @@ def login():
 def profile_file(filename):
     # Untuk kompatibilitas, hanya untuk file lokal.
     # Saat profile_photo adalah URL Vercel Blob, frontend akan bypass route ini.
+    # Di serverless, route ini hanya membaca file yang ada di static/ (tidak menulis).
+
+
     profile_dir = "static/profile"
     path = os.path.join(profile_dir, filename)
     if not os.path.exists(path):
@@ -298,7 +301,9 @@ def dashboard():
         jurusan_terbanyak = "-"
 
     # Resolve profile photo (MySQL first, fallback JSON)
+    # IMPORTANT: default ini hanya untuk display; jangan pernah melakukan write ke static/profile pada serverless.
     profile_photo_filename = "admin.jpeg"
+
     current_username = session.get("username")
     try:
         u = users_find_by_username(current_username)
@@ -692,13 +697,12 @@ def upload_profile_photo():
 
         # Jika token belum ada, fallback ke filesystem agar tidak error total.
         if not BLOB_READ_WRITE_TOKEN:
-            print("[profile/upload] BLOB_READ_WRITE_TOKEN is empty -> fallback filesystem")
-            profile_dir = "static/profile"
-            os.makedirs(profile_dir, exist_ok=True)
-            target_path = os.path.join(profile_dir, blob_object_name)
-            file.save(target_path)
+            # Di serverless/Vercel, filesystem biasanya read-only.
+            # Jadi: jangan menulis static/profile atau data/users.json.
+            raise RuntimeError(
+                "BLOB_READ_WRITE_TOKEN is not set on serverless runtime. Set env vars di Vercel (BLOB_STORE_ID & BLOB_READ_WRITE_TOKEN)."
+            )
 
-            # update profile_photo ke MySQL dulu (kalau bisa)
             mysql_ok = False
             try:
                 users_update_profile_photo(username=current_username, profile_photo=blob_object_name)
@@ -730,9 +734,9 @@ def upload_profile_photo():
         # Upload ke Vercel Blob via REST
         import requests
 
-        blob_url = f"https://blob.vercel-storage.com/{blob_object_name}"
-
+        # Upload REST endpoint (gunakan storeId yang sesuai token)
         upload_url = f"https://blob.vercel-storage.com/{BLOB_STORE_ID}/{blob_object_name}"
+
 
 
         # Validasi sebelum upload (supaya errornya jelas)

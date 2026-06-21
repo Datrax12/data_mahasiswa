@@ -262,10 +262,7 @@ href="{{ url_for('static', filename='style.css') }}"
             <img src="{{ profile_photo_filename }}" class="profile-img" >
             {% else %}
             <img
-                src="{{ url_for(
-                    'static',
-                    filename='profile/' ~ profile_photo_filename
-                ) }}"
+                src="{{ profile_photo_filename }}"
                 class="profile-img"
             >
             {% endif %}
