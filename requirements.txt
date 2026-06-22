@@ -2,9 +2,16 @@ flask
 werkzeug
 requests
 mysql-connector-python
+cloudinary
+python-dotenv
 
 # asgiref dibutuhkan bila pakai ASGI framework/adapter tertentu; boleh dihapus jika tidak dipakai.
 asgiref
+
+
+
+
+
 
 
 

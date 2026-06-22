@@ -51,35 +51,23 @@ app.secret_key = "mahasiswa123"
 UPLOAD_FOLDER = "static/uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-# Vercel Blob Storage
-# BLOB_STORE_ID: id storage (bucket) di Vercel
-BLOB_STORE_ID = os.environ.get("BLOB_STORE_ID")
-
-# BLOB_READ_WRITE_TOKEN: token akses read/write untuk upload.
-# NOTE: HAPUS default token/store yang hardcoded. Token mismatch biasanya terjadi karena token tidak cocok dengan store.
-BLOB_READ_WRITE_TOKEN = os.environ.get("BLOB_READ_WRITE_TOKEN")
-
-# Base URL publik untuk ditampilkan di frontend.
-# Jika bucket/store private, URL ini mungkin tidak bisa diakses publik (solusi signed URL di luar scope).
-BLOB_PUBLIC_BASE_URL = os.environ.get(
-    "BLOB_PUBLIC_BASE_URL",
-    "https://blob.vercel-storage.com",
-)
-
-# Untuk kompatibilitas kode yang sudah ada
-BLOB_STORAGE = os.environ.get("BLOB_STORAGE", BLOB_STORE_ID)
-
-# Untuk menghindari crash saat token env tidak diset.
-BLOB_UPLOAD_ENABLED = bool(BLOB_READ_WRITE_TOKEN)
-
-
-
-
+# ===== Profile photo storage (Cloudinary) =====
+# Tujuan: hindari Vercel Blob karena di serverless token env sering tidak tersedia.
+# Env vars yang disarankan:
+# - CLOUDINARY_CLOUD_NAME
+# - CLOUDINARY_API_KEY
+# - CLOUDINARY_API_SECRET
+#
+# Jika belum ada, aplikasi tetap bisa jalan tetapi upload profile akan gagal dengan pesan jelas.
+CLOUDINARY_CLOUD_NAME = os.environ.get("CLOUDINARY_CLOUD_NAME")
+CLOUDINARY_API_KEY = os.environ.get("CLOUDINARY_API_KEY")
+CLOUDINARY_API_SECRET = os.environ.get("CLOUDINARY_API_SECRET")
 
 
 # Pastikan folder data dan upload sudah ada saat aplikasi berjalan
 os.makedirs("data", exist_ok=True)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 
 # Ensure MySQL tables (with fallback to filesystem if DB not configured)
 try:
@@ -689,114 +677,51 @@ def upload_profile_photo():
         ext = ext.lower()
 
         if ext not in ALLOWED_EXTENSIONS:
-            flash("❌ Format foto tidahttps://9banko2brhyi3z8f.private.blob.vercel-storage.comk didukung (jpg/jpeg/png/webp)")
+            flash("❌ Format foto tidak didukung (jpg/jpeg/png/webp)")
             return redirect(request.referrer or "/dashboard")
+
 
         current_username = session["username"]
-        blob_object_name = f"{secure_filename(current_username)}{ext}"
+        blob_object_name = f"{secure_filename(current_username)}{ext}"  # masih dipakai untuk public_id/name di Cloudinary
 
-        # Jika token belum ada, fallback ke filesystem agar tidak error total.
-        if not BLOB_READ_WRITE_TOKEN:
-            # Di serverless/Vercel, filesystem biasanya read-only.
-            # Jadi: jangan menulis static/profile atau data/users.json.
-            raise RuntimeError(
-                "BLOB_READ_WRITE_TOKEN is not set on serverless runtime. Set env vars di Vercel (BLOB_STORE_ID & BLOB_READ_WRITE_TOKEN)."
+        # Upload ke Cloudinary
+        if not (CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET):
+            flash(
+                "❌ Cloudinary belum terkonfigurasi di server. Admin perlu set env vars: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET.",
+                "danger",
             )
-
-            mysql_ok = False
-            try:
-                users_update_profile_photo(username=current_username, profile_photo=blob_object_name)
-                mysql_ok = True
-            except Exception as e:
-                print("[mysql] users_update_profile_photo failed, fallback to JSON:", repr(e))
-
-            if not mysql_ok:
-                with open("data/users.json", "r") as f:
-                    users = json.load(f)
-
-                updated = False
-                for u in users:
-                    if u.get("username") == current_username:
-                        u["profile_photo"] = blob_object_name
-                        updated = True
-                        break
-
-                if not updated:
-                    users.append({"username": current_username, "password": "", "email": "", "profile_photo": blob_object_name})
-
-                with open("data/users.json", "w") as f:
-                    json.dump(users, f, indent=4)
-
-            flash("✅ Foto profile berhasil diperbarui (local)")
             return redirect(request.referrer or "/dashboard")
 
 
-        # Upload ke Vercel Blob via REST
-        import requests
+        import cloudinary
+        from cloudinary.uploader import upload as cloudinary_upload
 
-        # Upload REST endpoint (gunakan storeId yang sesuai token)
-        upload_url = f"https://blob.vercel-storage.com/{BLOB_STORE_ID}/{blob_object_name}"
+        cloudinary.config(
+            cloud_name=CLOUDINARY_CLOUD_NAME,
+            api_key=CLOUDINARY_API_KEY,
+            api_secret=CLOUDINARY_API_SECRET,
+            secure=True,
+        )
 
-
-
-        # Validasi sebelum upload (supaya errornya jelas)
-        if not BLOB_STORE_ID or not BLOB_READ_WRITE_TOKEN:
-            raise RuntimeError(
-                "Vercel Blob config missing. Pastikan env var di Vercel: BLOB_STORE_ID dan BLOB_READ_WRITE_TOKEN (token harus cocok dengan store)."
-            )
-
-        headers = {
-            "Authorization": f"Bearer {BLOB_READ_WRITE_TOKEN}",
-        }
-
+        # Ambil bytes lalu upload stream (works well on serverless)
         file_bytes = file.read()
 
-        # kembalikan cursor agar tidak error di beberapa server
-        try:
-            file.stream.seek(0)
-        except Exception:
-            pass
-
-        # Debug aman (jangan print token)
-        print(
-            "[profile/upload] blob config:",
-            "BLOB_STORE_ID=",
-            bool(BLOB_STORE_ID),
-            "token_set=",
-            bool(BLOB_READ_WRITE_TOKEN),
-            "upload_url=",
-            upload_url,
+        upload_result = cloudinary_upload(
+            file_bytes,
+            folder="profile_photos",
+            public_id=secure_filename(current_username),
+            overwrite=True,
+            resource_type="image",
         )
 
-        # Validasi minimal agar error tidak membingungkan
-        if not BLOB_STORE_ID or not BLOB_READ_WRITE_TOKEN:
-            raise RuntimeError(
-                "Vercel Blob config missing. Pastikan env var di Vercel: BLOB_STORE_ID dan BLOB_READ_WRITE_TOKEN (token harus cocok dengan store)."
-            )
-
-        print("[profile/upload] uploading to blob")
-        resp = requests.put(
-            upload_url,
-            headers=headers,
-            data=file_bytes,
-            timeout=30,
-        )
-
-        if resp.status_code >= 400:
-            raise RuntimeError(f"Vercel Blob upload failed: {resp.status_code} - {resp.text}")
-
-        # URL publik untuk ditampilkan di frontend
-        blob_public_url = f"{BLOB_PUBLIC_BASE_URL}/{blob_object_name}"
-
-
-
-
-
+        cloudinary_url = upload_result.get("secure_url") or upload_result.get("url")
+        if not cloudinary_url:
+            raise RuntimeError("Cloudinary upload succeeded but secure_url/url is missing in response.")
 
         # update MySQL first, fallback to JSON
         mysql_ok = False
         try:
-            users_update_profile_photo(username=current_username, profile_photo=blob_public_url)
+            users_update_profile_photo(username=current_username, profile_photo=cloudinary_url)
             mysql_ok = True
         except Exception as e:
             print("[mysql] users_update_profile_photo failed, fallback to JSON:", repr(e))
@@ -808,18 +733,19 @@ def upload_profile_photo():
             updated = False
             for u in users:
                 if u.get("username") == current_username:
-                    u["profile_photo"] = blob_public_url
+                    u["profile_photo"] = cloudinary_url
                     updated = True
                     break
 
             if not updated:
-                users.append({"username": current_username, "password": "", "email": "", "profile_photo": blob_public_url})
+                users.append({"username": current_username, "password": "", "email": "", "profile_photo": cloudinary_url})
 
             with open("data/users.json", "w") as f:
                 json.dump(users, f, indent=4)
 
         flash("✅ Foto profile berhasil diperbarui")
         return redirect(request.referrer or "/dashboard")
+
 
 
     except Exception as e:
