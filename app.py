@@ -232,10 +232,9 @@ def login():
                 session["username"] = username
                 return redirect("/dashboard")
 
-        if not mysql_ok:
-            return "Username atau Password Salah"
-
-        return "Username atau Password Salah"
+        # Jika login gagal, tampilkan flow-up (alert) di halaman login.
+        flash("❌ Username atau Password salah. Silakan coba lagi.", "danger")
+        return redirect("/login")
 
     return render_template("login.html")
 
@@ -682,7 +681,9 @@ def upload_profile_photo():
 
 
         current_username = session["username"]
-        blob_object_name = f"{secure_filename(current_username)}{ext}"  # masih dipakai untuk public_id/name di Cloudinary
+        # NOTE: sebelumnya ada implementasi Vercel Blob, namun sekarang wajib Cloudinary saja.
+        # blob_object_name ditiadakan untuk memastikan tidak ada path/opsi yang mengarah ke Vercel Blob.
+
 
         # Upload ke Cloudinary
         if not (CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET):

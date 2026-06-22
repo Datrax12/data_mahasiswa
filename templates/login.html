@@ -81,7 +81,21 @@
 
     <form method="POST">
 
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mb-3">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert" style="background: rgba(220,38,38,0.15); border: 1px solid rgba(220,38,38,0.25); color: white;">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% endwith %}
+
         <div class="mb-3">
+
 
             <input
                 type="text"
